@@ -1,5 +1,6 @@
-.node_modules/
-target/
 *.swp
 *.vim
+
+.node_modules/
+target/
 static/*.css*
