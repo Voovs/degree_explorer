@@ -34,13 +34,12 @@ impl Component for App {
 
     fn view(&self) -> Html {
         let increment = self.link.callback(|_| Msg::AddOne);
-        let dimensions = (8, 8);
 
         html!{
             <div>
                 <p>{"Counter: "}{ self.counter }</p>
                 <button onclick=increment />
-                <Table size=dimensions />
+                <Table size={ (2, 2) } />
             </div>
 
         }

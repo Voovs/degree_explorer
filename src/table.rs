@@ -1,11 +1,10 @@
 use yew::prelude::*;
 use yew::services::DialogService;
 
-#[allow(dead_code)]
 pub struct Table {
     props: TableProps,
     link: ComponentLink<Self>,
-    cells: Vec<Cell>,
+    rows: Vec<TableRow>,
 }
 
 #[derive(Clone, Properties)]
@@ -14,7 +13,8 @@ pub struct TableProps {
 }
 
 pub enum TableMsg {
-    AddCell(Cell),
+    AddCell(usize, RowMsg),
+    RemoveCell(usize, RowMsg),
     Clear,
 }
 
@@ -27,23 +27,26 @@ impl Component for Table {
             Cell::new("rust lang".to_string() , 300),
             Cell::new("shell opts".to_string(), 200),
             Cell::new("arch linux".to_string(), 100),
-            Cell::new("networks".to_string()  , 400),
         ];
 
-        Self { props, link, cells }
+        let rows = vec![TableRow::new(4, Some(cells.clone())); 3];
+
+        Self { props, link, rows }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            TableMsg::AddCell(cell) => {
-                self.cells.push(cell);
-                true
-            }
+            TableMsg::AddCell(r, msg) => self.rows[r].update(msg),
+            TableMsg::RemoveCell(r, msg) => self.rows[r].update(msg),
             TableMsg::Clear => {
+                let mut is_update = false;
+
                 if DialogService::confirm("Clear all courses?") {
-                    self.cells.clear();
-                    true
-                } else { false }
+                    for row in self.rows.iter_mut() {
+                        is_update = row.update(RowMsg::Clear) || is_update;
+                    }
+                }
+                is_update
             }
         }
     }
@@ -57,16 +60,15 @@ impl Component for Table {
 
     fn view(&self) -> Html {
         let add_course = self.link.callback(|_| {
-            TableMsg::AddCell(Cell::new("new course".to_string(), 300))
+            TableMsg::AddCell(2, RowMsg::AddCell(2, Cell::new("new course".to_string(), 300)))
         });
+
         let clear_table =  self.link.callback(|_| TableMsg::Clear);
 
         html! {
-            <div class={"table"}>
+            <div>
                 <button onclick=add_course>{"Add course"}</button>
-                <div>
-                    { self.cells.iter().map(|cell| cell.render()).collect::<Html>() }
-                </div>
+                    { self.rows.iter().map(|row| row.render()).collect::<Html>() }
                 <button onclick=clear_table>{"Clear"}</button>
             </div>
         }
@@ -74,31 +76,82 @@ impl Component for Table {
 }
 
 
+/// Row in the table, representing one semester of study
+#[derive(Clone)]
+pub struct TableRow {
+    cells: Vec<Option<Cell>>,
+    len: usize,
+}
+
+pub enum RowMsg {
+    AddCell(usize, Cell),
+    RemoveCell(usize),
+    Clear,
+}
+
+impl TableRow {
+    fn new(len: usize, front_cells: Option<Vec<Cell>>) -> Self {
+        let mut cells = vec![None; len];
+
+        if let Some(front_cells) = front_cells {
+            front_cells.into_iter().enumerate().for_each(|(i, cell)| cells[i] = Some(cell));
+        }
+
+        Self { len, cells }
+    }
+
+    fn update(&mut self, msg: RowMsg) -> ShouldRender {
+        match msg {
+            RowMsg::AddCell(i, cell) => {
+                if self.cells[i].is_some() {
+                    let is_confirm = DialogService::confirm(
+                        &format!("Are you sure you want to replace {:?}",
+                            self.cells[i].as_ref().unwrap().name)
+                    );
+
+                    if is_confirm {
+                        self.cells[i].replace(cell);
+                    } else {
+                        return false
+                    }
+                } else {
+                    self.cells[i].replace(cell);
+                }
+            }
+            RowMsg::RemoveCell(i) => { self.cells[i].take(); },
+            RowMsg::Clear => self.cells.fill(None),
+        }
+        true
+    }
+
+    fn render(&self) -> Html {
+        html! {
+            <div class={ "table-row" }>
+                {
+                    self.cells.iter().map(|opt_cell| {
+                        match opt_cell {
+                            Some(cell) => cell.render(),
+                            None => Cell::render_blank(),
+                        }
+                    }).collect::<Html>()
+                }
+            </div>
+        }
+    }
+}
+
+
+/// Single course in the table
+#[derive(Clone)]
 pub struct Cell {
     name: String,
     code: u32,
 }
 
-
-//#[derive(Clone, PartialEq, Properties)]
-//pub struct CourseInfo {
-//    is_clear: bool,
-//    name: String,
-//    code: u32,
-//}
-
-
-//pub enum CellMsg {
-//    SetCourse(CourseInfo),
-//    Clear,
-//}
-
-
 impl Cell {
     pub fn new(name: String, code: u32) -> Self {
         Self { name, code, }
     }
-
 
     pub fn render(&self) -> Html {
         html! {
@@ -108,46 +161,8 @@ impl Cell {
             </div>
         }
     }
+
+    pub fn render_blank() -> Html {
+        html!{ <div class={"cell"} /> }
+    }
 }
-
-
-//impl Component for Cell {
-//    type Message = CellMsg;
-//    type Properties = CourseInfo;
-//
-//    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-//        Self { props, link }
-//    }
-//
-//    fn update(&mut self, msg: Self::Message) -> ShouldRender {
-//        match msg {
-//            CellMsg::SetCourse(props) => {
-//                self.props = props;
-//                self.props.is_clear = false;
-//            }
-//            CellMsg::Clear => self.props.is_clear = true,
-//        }
-//        true
-//    }
-//
-//    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-//        if self.props != props {
-//            self.props = props;
-//            true
-//        } else { false }
-//    }
-//
-//    fn view(&self) -> Html {
-//        if !self.props.is_clear {
-//            html! {
-//                <div class={"cell"}>
-//                    <span class={"course_name"}>{ &self.props.name }</span>
-//                    <span class={"course_code"}>{ self.props.code }</span>
-//                </div>
-//            }
-//        } else {
-//            html! { <div/> }
-//        }
-//
-//    }
-//}
